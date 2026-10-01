@@ -1,24 +1,68 @@
-# Final Extraction — checkpoint 02
+# Final Extraction (Codeverse 2.0, Phase 2 Game 5)
 
-Open dist/index.html directly in Chrome or Edge, or use the running preview at http://127.0.0.1:5173/.
+Playable React and Three.js demo for the final escape. The visual flow includes credential entry, a five-command sequence, a full-screen tunnel and getaway cinematic, a three- or four-person crew, sound cues, and a result screen. **The central gateway is not connected yet.** The current credentials, timer, penalties, money, risk, and score are demo values held in the browser.
 
-The vault now reveals a three-dimensional round tunnel with structural rings, lights, a walkway and gold crates. There is no flat illuminated rectangle immediately behind the door. The wheel turns before the door swings open, and the animation finishes before the results appear.
+## Run locally
 
-Play: expand Try with sample credentials, fill the samples, verify each field, and begin the extraction sequence. Read the field notes and select the five actions in the correct order. The five-minute demo countdown begins on entry to the sequence. Wrong sequences remove 30 seconds and 150 score points. A hint costs 100 score points. The timer freezes on a correct submission. Refresh or Replay starts a fresh demo.
+Requirements: Node.js and npm. From this folder (`outputs/final-extraction`):
 
-Sample credentials: ERASE-7429 / SILENT-031 / MINT-OMEGA / NORTH-07.
-Demo solution: surveillance, alarm, locks, passage, crew.
+```powershell
+npm ci
+npm run dev
+```
 
-This remains a client-side demo, not an event-ready verification system. Sample answers are in the browser code, refresh resets the mission, and money (100,000 credits) and risk (12) are fixed examples. The scoring formula is provisional: money / 100 + remaining seconds * 5 - risk * 20 - wrong sequences * 150 - hints * 100, floored at zero. Earlier mission integration, Python server validation, persistent team state and authoritative scoring are still required. The event brief still needs to specify the source of the shutdown code. No audio has been added yet.
+Open the local URL printed by Vite (normally `http://127.0.0.1:5173/`). To make a production build, run `npm run build`; its output is `dist/`. For a standalone preview that can be opened directly as `dist/index.html`, run:
 
-Source: src.jsx contains the 3D scene; App.jsx contains the mission flow; Sequence.jsx contains the puzzle; style.css contains styles. Build with node --preserve-symlinks --preserve-symlinks-main build.mjs from this folder. Serve with python -m http.server 5173 --bind 127.0.0.1 --directory dist. The dist folder is independently portable; Google Fonts is optional and falls back offline.
+```powershell
+node --preserve-symlinks --preserve-symlinks-main build.mjs
+```
 
-## Checkpoint 03 — extended escape cinematic
-After the vault door opens, the camera moves through the tunnel. The exit doors slide aside, revealing an illuminated loading bay and an armored getaway van. The van departs before the completion screen appears. The full timeline is approximately 24 seconds, including the vault opening.
+The standalone preview uses only local JavaScript and CSS. Google Fonts are optional. The sound is synthesized in the browser, so no audio assets or audio service are needed. Browsers start sound after a user action; use **Mute sound / Turn sound on** to control it.
 
-Use Preview finale · animation only on the first screen to watch without entering credentials. This preview does not award a score. Replay and Skip animation controls are available. Reduced-motion users receive the final scene without camera travel. A successful puzzle submission plays the same cinematic and then shows its frozen demo score.
+## Try the demo
 
-The scene is rendered live in Three.js; no video, GIF, or audio is used. Event validation remains a separate pending integration.
+1. Choose **3 teammates** or **4 teammates** under **Crew on transport**.
+2. Open **Try with sample credentials**, fill the samples, and verify all four fields. The samples are `ERASE-7429`, `SILENT-031`, `MINT-OMEGA`, and `NORTH-07`.
+3. Start the sequence. The demo order is **surveillance → alarm → locks → passage → crew**. The five-minute countdown starts here.
+4. Submit the correct order to play the full-screen vault, tunnel, transport, and escape animation. Status text appears over the animation. Close the result panel to view the finished scene.
 
-## Checkpoint 04 — celebrating crew
-Two stylized red-jumpsuit characters smile and raise their arms beside gold bags in the open cargo bay. The camera follows the departing truck for a close celebration shot. White theatrical masks hang beside their waists. This is a simple 3D character pass, with no recorded laughter or audio. Preview finale shows it without solving the puzzle.
+**Preview finale · animation only** on the first screen plays the cinematic without completing a mission or awarding a score. Wrong sequences remove 30 seconds and 150 demo points; one hint costs 100 demo points. Refresh or Replay resets the demo.
+
+## Project map
+
+| File | Purpose |
+| --- | --- |
+| `App.jsx` | Screen flow, sample credential checks, local timer, demo score, sound control, crew selector |
+| `Sequence.jsx` | Five-command puzzle, demo answer, wrong-order and hint callbacks |
+| `src.jsx` | Three.js vault, tunnel, getaway van, and three- or four-person crew animation |
+| `sound.js` | Browser-generated sound cues |
+| `style.css` | Layout, full-screen cinematic, overlays, responsive styling |
+| `index.html` | Vite entry page |
+| `build.mjs` | Standalone offline preview build |
+
+## Central gateway integration handoff
+
+The event integration guide calls this game `p2g5`. It says games communicate with the **central gateway**, which owns team IDs, progression, outputs, money, attempts, hints, and final scoring. The gateway base URL, game API key, and test team are to be supplied by the gateway team. **There are no live gateway requests or configurable gateway URLs in this repo today.** The points below are the intended connection points, not implemented endpoints in this app.
+
+| Gateway call | When Final Extraction needs it | Notes |
+| --- | --- | --- |
+| `GET /api/teams/{team_id}/state` | On entry or resume, to check team status, balance, and whether required outputs exist | Values from other games are not returned here. Use only team IDs from the gateway's `teams.json`. |
+| `POST /api/verify` | When the team submits the four artifacts | Send `team_id`, `deletion_key`, `shutdown_code`, `control_token`, and `route_code`. The gateway responds with `valid`/`invalid` per field and records invalid credential attempts itself. Do not send duplicate `wrong_attempt` events for those fields. |
+| `POST /api/events` | On a sequence wrong attempt, hint use, and verified completion | Use `game_id: "p2g5"`, a unique UUID `event_id`, the real `team_id`, and event type `wrong_attempt`, `hint_used`, or `solved` as applicable. A `solved` event should include `meta.time_remaining_seconds`; the gateway computes the final score. |
+
+Gateway requests need an `X-Game-Key` header. Put this key in a **server-side adapter**, never in browser JavaScript or a Vite environment variable exposed to the client. The browser should call that adapter, which identifies the team, forwards the gateway request, and returns only the response data the UI needs. The API key is restricted to this game's ID. The event guide also requires a local log of accepted submissions, unique event IDs so retries count once, a 3-second gateway timeout, and a retry queue for events when the gateway is unavailable (retry every 10–30 seconds). Those server-side pieces are still to be built.
+
+Integration points in the current code:
+
+- Replace the `samples` comparison in `App.jsx` `verify()` with server-backed `POST /api/verify` results. Keep the key and team identity on the server. Map the current **Escape route** input to `route_code`.
+- Check team state and eligibility before enabling this final challenge. The event flow limits Phase 2 to qualifying teams and unlocks challenges in order; this demo does not enforce either rule.
+- Replace the local demo countdown and `score` in `App.jsx` with the event clock/rules and the gateway's authoritative result. The current formula is `max(0, money / 100 + remaining_seconds * 5 - risk * 20 - wrong_sequences * 150 - hints * 100)` with sample money `100,000` and risk `12`; it is **not** the final event scoring contract.
+- Connect `Sequence.jsx` wrong-order and hint callbacks to `wrong_attempt` and `hint_used` event reporting. Decide with the gateway team whether the sequence itself is validated centrally or remains a game-side check. Only trigger the cinematic and send `solved` after all artifacts and the sequence are accepted.
+- Replace the crew-size selector with team data if the gateway or team roster provides it. The 3D scene already accepts `crewSize={3}` or `crewSize={4}`.
+- Do not send a `solved` event from **Preview finale · animation only**.
+
+The two event documents disagree about the **Shutdown Code** source: the central gateway guide says its owner is unconfirmed, while the complete game flow says Phase 1 Alarm System produces it. Confirm which game issues and stores this value before connecting `/api/verify`. The gateway team must also supply the base URL, `p2g5` key, and the final scoring/sequence policy.
+
+## Current status
+
+The visual animation, three- or four-person crew option, full-screen sequence and tunnel presentation, and sound cues are implemented. The Test sound button was removed. The UI is ready for backend integration, but **no backend API or production verification is implemented**. The demo can be previewed independently while the integration work proceeds.

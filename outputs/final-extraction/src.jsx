@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import App from './App.jsx';
 import './style.css';
 
-function Vault({unlocked,opening,playback=0,onBeat,onFinish,skip=false}){
- const host=useRef();const state=useRef({unlocked,opening,playback,onBeat,onFinish,skip});state.current={unlocked,opening,playback,onBeat,onFinish,skip};
+function Vault({unlocked,opening,playback=0,onBeat,onFinish,skip=false,crewSize=4}){
+ const host=useRef();const state=useRef({unlocked,opening,playback,onBeat,onFinish,skip,crewSize});state.current={unlocked,opening,playback,onBeat,onFinish,skip,crewSize};
  useEffect(()=>{
   const el=host.current,scene=new THREE.Scene();scene.background=new THREE.Color('#111014');scene.fog=new THREE.Fog('#111014',24,65);
   const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;el.appendChild(renderer.domElement);
@@ -37,27 +37,57 @@ function Vault({unlocked,opening,playback=0,onBeat,onFinish,skip=false}){
   const vanPaint=new THREE.MeshStandardMaterial({color:0x182c31,roughness:.31,metalness:.75});
   box(2.55,.14,5.4,vanPaint,0,-.65,0,van);box(2.55,.14,5.4,vanPaint,0,1.68,0,van);box(.12,2.4,5.4,vanPaint,-1.23,.48,0,van);box(.12,2.4,5.4,vanPaint,1.23,.48,0,van);box(2.55,2.4,.12,vanPaint,0,.48,-2.6,van);box(2.65,.18,.22,edge,0,-.42,2.8,van);
   for(let side of [-1,1]){const rearDoor=box(1.18,2,.1,metal,side*1.65,.6,2.45,van);rearDoor.rotation.y=side*1.1;box(.15,.46,.12,new THREE.MeshStandardMaterial({color:0xff2c31,emissive:0xff1726,emissiveIntensity:4}),side*1.14,-.05,2.84,van);for(let z of [-1.7,1.7]){let tire=new THREE.Mesh(new THREE.CylinderGeometry(.57,.57,.25,24),dark);tire.rotation.z=Math.PI/2;tire.position.set(side*1.29,-.87,z);van.add(tire);}}
-  // Two stylized heist crew celebrate in the open cargo bay.
-  const redSuit=new THREE.MeshStandardMaterial({color:0xc92138,roughness:.75});
-  const skin=new THREE.MeshStandardMaterial({color:0xe2a27f,roughness:.8});
-  const black=new THREE.MeshStandardMaterial({color:0x101016,roughness:.8});
-  const white=new THREE.MeshStandardMaterial({color:0xf5eadb,roughness:.6});
+  // Four detailed crew members fit in two staggered rows; one is hidden for three-person teams.
+  const black=new THREE.MeshStandardMaterial({color:0x15191e,roughness:.86});
+  const vest=new THREE.MeshStandardMaterial({color:0x252a31,roughness:.9});
+  const trim=new THREE.MeshStandardMaterial({color:0xd3b976,roughness:.68,metalness:.2});
   function ball(parent,r,mat,x,y,z,sx=1,sy=1,sz=1){const m=new THREE.Mesh(new THREE.SphereGeometry(r,24,16),mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m}
   const crew=[];
-  for(let side of [-1,1]){
-   const person=new THREE.Group();person.position.set(side*.56,0,2.22);van.add(person);
-   ball(person,.32,redSuit,0,.32,0,.85,1.35,.7);box(.025,.65,.025,black,0,.33,.235,person);
-   for(let x of [-.15,.15]){box(.19,.42,.22,redSuit,x,-.24,0,person);ball(person,.14,black,x,-.48,.09,1,.6,1.4)}
-   ball(person,.265,redSuit,0,.98,-.035,1.12,1.2,1);ball(person,.23,skin,0,.98,.09,1,1.07,.82);
-   ball(person,.018,black,-.078,1.025,.267);ball(person,.018,black,.078,1.025,.267);
-   const smile=new THREE.Mesh(new THREE.TorusGeometry(.088,.022,10,24,Math.PI),white);smile.rotation.z=Math.PI;smile.position.set(0,.951,.276);person.add(smile);
-   for(let handSide of [-1,1]){const shoulder=new THREE.Group();shoulder.position.set(handSide*.23,.57,0);person.add(shoulder);box(.16,.44,.17,redSuit,0,.2,0,shoulder);ball(shoulder,.09,skin,0,.46,.015);shoulder.rotation.z=-handSide*.7;crew.push({shoulder,handSide,side,person})}
-   // White theatrical mask hangs at the belt, leaving the smiling face visible.
-   const mask=ball(person,.11,white,side*.28,.03,.24,.72,1.25,.35);ball(person,.015,black,side*.28-.035,.055,.281);ball(person,.015,black,side*.28+.035,.055,.281);
-  }
+  const positions=[[-.38,2.25,0],[.38,2.25,0],[-.91,1.78,.28],[.91,1.78,.28]];
+  const suitColors=[0x9b2638,0xaa2c3b,0x872332,0x9f303a];
+  const skinColors=[0xc99070,0x8d5a47,0xe0ad89,0x654638];
+  const hairColors=[0x1b1718,0x2d211d,0x241b1d,0x18191b];
+  positions.forEach(([x,z,lift],index)=>{
+   const suit=new THREE.MeshStandardMaterial({color:suitColors[index],roughness:.88});
+   const skin=new THREE.MeshStandardMaterial({color:skinColors[index],roughness:.83});
+   const hair=new THREE.MeshStandardMaterial({color:hairColors[index],roughness:.94});
+   const person=new THREE.Group();person.position.set(x,lift,z);person.scale.setScalar(index>1?.94:.98);van.add(person);
+   const torso=new THREE.Mesh(new THREE.CylinderGeometry(.19,.25,.59,12),suit);torso.position.set(0,.37,0);person.add(torso);
+   box(.34,.43,.075,vest,0,.37,.19,person);
+   for(const side of [-1,1]){
+    box(.045,.5,.035,black,side*.16,.42,.235,person);
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.105,.085,.45,10),suit);leg.position.set(side*.135,-.19,0);person.add(leg);
+    box(.17,.12,.3,black,side*.135,-.48,.09,person);
+   }
+   box(.48,.075,.33,black,0,.06,0,person);
+   box(.08,.06,.045,trim,0,.06,.19,person);
+   box(.18,.035,.04,trim,0,.67,.14,person);
+   const neck=new THREE.Mesh(new THREE.CylinderGeometry(.08,.09,.13,10),skin);neck.position.y=.75;person.add(neck);
+   ball(person,.17,skin,0,1.02,.02,1,1.08,.94);
+   const hairCap=new THREE.Mesh(new THREE.SphereGeometry(.173,20,14,0,Math.PI*2,0,Math.PI*.52),hair);hairCap.position.set(0,1.04,.01);person.add(hairCap);
+   for(const side of [-1,1]){
+    ball(person,.034,skin,side*.162,1.01,.02,.65,1,.7);
+    ball(person,.011,black,side*.063,1.045,.178,.75,1,.45);
+    box(.055,.009,.012,hair,side*.063,1.095,.177,person);
+    box(.045,.11,.03,black,side*.176,1.03,.01,person);
+   }
+   ball(person,.028,skin,0,.995,.185,.58,.78,.7);
+   box(.06,.01,.012,hair,0,.92,.165,person);
+   box(.07,.016,.025,black,-.16,.97,.105,person);
+   const radio=box(.13,.19,.07,black,.25,.28,.08,person);radio.rotation.z=-.1;
+   const arms=[];
+   for(const side of [-1,1]){
+    const arm=new THREE.Group();arm.position.set(side*.23,.6,0);person.add(arm);
+    const upper=new THREE.Mesh(new THREE.CylinderGeometry(.09,.075,.29,10),suit);upper.position.y=-.15;arm.add(upper);
+    const forearm=new THREE.Mesh(new THREE.CylinderGeometry(.076,.065,.26,10),suit);forearm.position.set(0,-.405,.02);arm.add(forearm);
+    ball(arm,.072,black,0,-.55,.04,1,.82,1);
+    arms.push({arm,side});
+   }
+   crew.push({person,arms,index,baseY:lift});
+  });
   for(let side of [-1,1]){ball(van,.28,dark,side*.85,-.39,2.45,1,.7,.8);for(let k=0;k<3;k++){const ingot=box(.19,.075,.27,gold,side*.85+(k-1)*.065,-.16+k*.055,2.44,van);ingot.rotation.y=k*.22}}
-  const cargoLamp=new THREE.PointLight(0xffd6a0,9,5);cargoLamp.position.set(0,1.4,3.4);van.add(cargoLamp);
-  const rearGlow=new THREE.PointLight(0xff2037,6,6);rearGlow.position.set(0,.3,3.1);van.add(rearGlow);
+  const cargoLamp=new THREE.PointLight(0xffe7cf,13,5);cargoLamp.position.set(0,1.4,3.4);van.add(cargoLamp);
+  const rearGlow=new THREE.PointLight(0xff2037,2,6);rearGlow.position.set(0,.3,3.1);van.add(rearGlow);
   const exitLight=new THREE.PointLight(0xd2e7f2,55,22);exitLight.position.set(0,2,-44);scene.add(exitLight);
   const signCanvas=document.createElement('canvas');signCanvas.width=768;signCanvas.height=160;const ctx=signCanvas.getContext('2d');ctx.fillStyle='#101b20';ctx.fillRect(0,0,768,160);ctx.fillStyle='#d5f5e8';ctx.font='bold 54px Arial';ctx.textAlign='center';ctx.fillText('EXTRACTION  /  NORTH 07',384,98);const signTex=new THREE.CanvasTexture(signCanvas);box(4.8,1,.04,new THREE.MeshBasicMaterial({map:signTex}),0,3.4,-18);
   ring(2.64,.26,metal,-.1);ring(2.42,.08,edge,.03);
@@ -78,9 +108,10 @@ function Vault({unlocked,opening,playback=0,onBeat,onFinish,skip=false}){
     camera.position.set(.4*(1-travel),1-.95*travel,startZ+(-15.6-startZ)*travel);camera.lookAt(0,.05*travel,-26*travel);camera.fov=40+12*travel;camera.updateProjectionMatrix();
     exitDoors[0].position.x=-1.2-exitP*2.4;exitDoors[1].position.x=1.2+exitP*2.4;exitSeam.visible=exitP<.03;van.position.z=-22-25*depart;
     const follow=smooth((elapsed-17)/3);camera.position.z=THREE.MathUtils.lerp(camera.position.z,van.position.z+6.5,follow);camera.position.y=THREE.MathUtils.lerp(camera.position.y,.65,follow);camera.lookAt(0,.3,THREE.MathUtils.lerp(-26*travel,van.position.z+2,follow));
-    crew.forEach(({shoulder,handSide,side,person})=>{shoulder.rotation.z=-handSide*(.6+(reduced?0:Math.sin(t*5+side)*.25));person.position.y=reduced?0:Math.sin(t*5+side)*.045});
+    const celebration=smooth((elapsed-17)/2);
+    crew.forEach(({person,arms,index,baseY})=>{person.visible=index<s.crewSize;person.position.y=baseY+(reduced?0:Math.sin(t*3.2+index*1.7)*.018*celebration);arms.forEach(({arm,side},armIndex)=>{const wave=(index+armIndex)%2===0?1.85:.35;arm.rotation.z=side*(.18+celebration*(wave+(reduced?0:Math.sin(t*3.3+index)*.09)))});});
     const beat=elapsed<7?'vault':elapsed<13?'tunnel':elapsed<18?'boarding':elapsed<23?'escape':'clear';if(beat!==lastBeat){lastBeat=beat;s.onBeat?.(beat)}if(elapsed>=24&&!finished){finished=true;s.onFinish?.()}
-   }else{openStarted=null;finished=false;lastBeat='';wheel.rotation.z=0;hinge.rotation.y=0;warm.intensity=0;camera.position.set(.4,1,startZ);camera.lookAt(0,0,0);camera.fov=40;camera.updateProjectionMatrix();exitDoors[0].position.x=-1.2;exitDoors[1].position.x=1.2;exitSeam.visible=true;van.position.z=-22}
+   }else{openStarted=null;finished=false;lastBeat='';wheel.rotation.z=0;hinge.rotation.y=0;warm.intensity=0;camera.position.set(.4,1,startZ);camera.lookAt(0,0,0);camera.fov=40;camera.updateProjectionMatrix();exitDoors[0].position.x=-1.2;exitDoors[1].position.x=1.2;exitSeam.visible=true;van.position.z=-22;crew.forEach(({person,index})=>{person.visible=index<s.crewSize})}
    red.intensity=reduced?25:25+Math.sin(t*1.4)*6;renderer.render(scene,camera)}animate();
   return()=>{cancelAnimationFrame(frame);observer.disconnect();renderer.dispose();const materials=new Set();scene.traverse(o=>{o.geometry?.dispose();if(o.material)materials.add(o.material)});materials.forEach(m=>m.dispose());signTex.dispose();el.replaceChildren()};
  },[]);return <div className="vault-canvas" ref={host} aria-label="Interactive three-dimensional steel vault"/>;
