@@ -50,7 +50,9 @@ The event integration guide calls this game `p2g5`. It says games communicate wi
 | `POST /api/verify` | When the team submits the four artifacts | Send `team_id`, `deletion_key`, `shutdown_code`, `control_token`, and `route_code`. The gateway responds with `valid`/`invalid` per field and records invalid credential attempts itself. Do not send duplicate `wrong_attempt` events for those fields. |
 | `POST /api/events` | On a sequence wrong attempt, hint use, and verified completion | Use `game_id: "p2g5"`, a unique UUID `event_id`, the real `team_id`, and event type `wrong_attempt`, `hint_used`, or `solved` as applicable. A `solved` event should include `meta.time_remaining_seconds`; the gateway computes the final score. |
 
-Gateway requests need an `X-Game-Key` header. Put this key in a **server-side adapter**, never in browser JavaScript or a Vite environment variable exposed to the client. The browser should call that adapter, which identifies the team, forwards the gateway request, and returns only the response data the UI needs. The API key is restricted to this game's ID. The event guide also requires a local log of accepted submissions, unique event IDs so retries count once, a 3-second gateway timeout, and a retry queue for events when the gateway is unavailable (retry every 10–30 seconds). Those server-side pieces are still to be built.
+Gateway requests need an `X-Game-Key` header. Keep this key in the server-side adapter, never in browser JavaScript. A local adapter scaffold is available in `server.mjs`; it reads `GATEWAY_BASE_URL` and `P2G5_GAME_KEY` from an ignored `.env` file, uses a 3-second timeout, logs events and verification results under `.local-data/`, and queues events for retry every 20 seconds. The frontend remains the original demo and does not call the adapter yet.
+
+To run both locally, start `npm run api` and `npm run dev` in separate terminals from this folder. Copy `.env.example` to `.env` when gateway settings are supplied. The demo still uses its original sample credentials and scoring; adapter endpoints are available for later integration.
 
 Integration points in the current code:
 
@@ -65,4 +67,4 @@ The two event documents disagree about the **Shutdown Code** source: the central
 
 ## Current status
 
-The visual animation, three- or four-person crew option, full-screen sequence and tunnel presentation, and sound cues are implemented. The Test sound button was removed. The UI is ready for backend integration, but **no backend API or production verification is implemented**. The demo can be previewed independently while the integration work proceeds.
+The visual animation, three- or four-person crew option, full-screen sequence and tunnel presentation, and sound cues are implemented. The Test sound button was removed. The demo can be previewed independently; the adapter is a scaffold and has not been connected to a live gateway.
