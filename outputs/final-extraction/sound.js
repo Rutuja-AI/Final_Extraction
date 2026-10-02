@@ -2,6 +2,10 @@
 let audioContext;
 let master;
 let enabled=true;
+let finaleTrack;
+let finaleTrackActive=false;
+let finaleFallbackPlayed=false;
+let finaleFadeTimer;
 
 function context(){
  if(!enabled||typeof window==='undefined')return null;
@@ -24,6 +28,10 @@ export function prepareAudio(){
 export function setSoundEnabled(value){
  enabled=value;
  if(master&&audioContext)master.gain.setTargetAtTime(value?.8:0,audioContext.currentTime,.025);
+ if(finaleTrack){
+  if(value&&finaleTrackActive)void finaleTrack.play().catch(()=>{});
+  else if(!value)finaleTrack.pause();
+ }
  if(value)prepareAudio();
 }
 
@@ -58,9 +66,70 @@ function rush(ctx,{at=0,duration=.55,volume=.07,low=120,high=1800}){
  source.start(start);source.stop(start+duration);
 }
 
+function playClearFallback(ctx){
+ [392,494,588].forEach((frequency,i)=>tone(ctx,{at:i*.13,from:frequency,to:frequency*.997,duration:.75,volume:.13,type:'sine'}));
+}
+
+function playFinaleFallback(){
+ if(finaleFallbackPlayed||!enabled)return;
+ finaleFallbackPlayed=true;
+ finaleTrackActive=false;
+ const ctx=context();
+ if(ctx)playClearFallback(ctx);
+}
+
+export function startFinaleMusic(){
+ finaleFallbackPlayed=false;
+ const ctx=context();
+ if(!ctx)return;
+ if(ctx.state==='suspended')void ctx.resume().catch(()=>{});
+ if(typeof window==='undefined'||typeof window.Audio==='undefined'){
+  playFinaleFallback();return;
+ }
+ if(!finaleTrack){
+  finaleTrack=new window.Audio('/audio/bella-ciao.mp3');
+  finaleTrack.preload='auto';
+ }
+ finaleTrack.pause();
+ finaleTrack.currentTime=0;
+ finaleTrackActive=true;
+ finaleTrack.onerror=playFinaleFallback;
+ const playback=finaleTrack.play();
+ if(playback&&typeof playback.catch==='function'){
+  void playback.catch(playFinaleFallback);
+ }
+}
+
+export function stopFinaleMusic(){
+ finaleTrackActive=false;
+ if(finaleFadeTimer){clearInterval(finaleFadeTimer);finaleFadeTimer=undefined;}
+ if(finaleTrack){
+  finaleTrack.pause();
+  finaleTrack.currentTime=0;
+  finaleTrack.volume=1;
+ }
+}
+
+export function finishFinaleMusic(fadeMs=2000){
+ finaleTrackActive=false;
+ if(!finaleTrack)return;
+ if(finaleFadeTimer){clearInterval(finaleFadeTimer);finaleFadeTimer=undefined;}
+ const initialVolume=finaleTrack.volume;
+ const startedAt=Date.now();
+ finaleFadeTimer=setInterval(()=>{
+  const progress=Math.min(1,(Date.now()-startedAt)/fadeMs);
+  finaleTrack.volume=initialVolume*(1-progress);
+  if(progress>=1){
+   clearInterval(finaleFadeTimer);finaleFadeTimer=undefined;
+   finaleTrack.pause();finaleTrack.currentTime=0;finaleTrack.volume=1;
+  }
+ },50);
+}
+
 export function playBeat(beat){
  const ctx=context();if(!ctx)return;
  if(ctx.state==='suspended')void ctx.resume().catch(()=>{});
+ if(finaleTrackActive)return;
  switch(beat){
   case 'vault':
    for(let i=0;i<3;i++)tone(ctx,{at:i*.19,from:480,to:165,duration:.13,volume:.18,type:'triangle'});
@@ -79,7 +148,6 @@ export function playBeat(beat){
    rush(ctx,{at:.2,duration:1.1,volume:.13,low:220,high:850});
    break;
   case 'clear':
-   [392,494,588].forEach((frequency,i)=>tone(ctx,{at:i*.13,from:frequency,to:frequency*.997,duration:.75,volume:.13,type:'sine'}));
    break;
  }
 }

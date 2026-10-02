@@ -50,16 +50,17 @@ The event integration guide calls this game `p2g5`. It says games communicate wi
 | `POST /api/verify` | When the team submits the four artifacts | Send `team_id`, `deletion_key`, `shutdown_code`, `control_token`, and `route_code`. The gateway responds with `valid`/`invalid` per field and records invalid credential attempts itself. Do not send duplicate `wrong_attempt` events for those fields. |
 | `POST /api/events` | On a sequence wrong attempt, hint use, and verified completion | Use `game_id: "p2g5"`, a unique UUID `event_id`, the real `team_id`, and event type `wrong_attempt`, `hint_used`, or `solved` as applicable. A `solved` event should include `meta.time_remaining_seconds`; the gateway computes the final score. |
 
-Gateway requests need an `X-Game-Key` header. Keep this key in the server-side adapter, never in browser JavaScript. A local adapter scaffold is available in `server.mjs`; it reads `GATEWAY_BASE_URL` and `P2G5_GAME_KEY` from an ignored `.env` file, uses a 3-second timeout, logs events and verification results under `.local-data/`, and queues events for retry every 20 seconds. The frontend remains the original demo and does not call the adapter yet.
+Gateway requests need an `X-Game-Key` header. Keep this key in the server-side adapter, never in browser JavaScript. The local adapter in `server.mjs` reads `GATEWAY_BASE_URL` and `P2G5_GAME_KEY` from an ignored `.env` file, uses a 3-second timeout, logs events and verification results under `.local-data/`, and queues events for retry every 20 seconds. With no `team_id` launch parameter, the original sample demo is unchanged. When launched as `?team_id=T07` and gateway settings are configured, the existing credential form loads that team's state, verifies the four entered artifacts through `/api/verify`, and reports sequence, hint, and solve events. The interface layout is unchanged.
 
-To run both locally, start `npm run api` and `npm run dev` in separate terminals from this folder. Copy `.env.example` to `.env` when gateway settings are supplied. The demo still uses its original sample credentials and scoring; adapter endpoints are available for later integration.
+To run both locally, start `npm run api` and `npm run dev` in separate terminals from this folder. Copy `.env.example` to `.env` when gateway settings are supplied. Use the normal local URL for the demo, or add a team ID such as `?team_id=T00` to exercise gateway mode after configuration.
 
 Integration points in the current code:
 
-- Replace the `samples` comparison in `App.jsx` `verify()` with server-backed `POST /api/verify` results. Keep the key and team identity on the server. Map the current **Escape route** input to `route_code`.
-- Check team state and eligibility before enabling this final challenge. The event flow limits Phase 2 to qualifying teams and unlocks challenges in order; this demo does not enforce either rule.
+- The UI reads the team ID from the launch URL (`team_id`) or `window.__CODEVERSE_TEAM_ID__`; authentication is not implemented.
+- Artifact values are entered by the team and checked through `/api/verify`. The gateway's state response reports output presence, not values, so this follows the current TRD rather than auto-filling artifacts.
+- The Shutdown Code producer remains configurable because the two TRDs disagree. Set `SHUTDOWN_CODE_GAME_ID` only after the organizer confirms the producer.
 - Replace the local demo countdown and `score` in `App.jsx` with the event clock/rules and the gateway's authoritative result. The current formula is `max(0, money / 100 + remaining_seconds * 5 - risk * 20 - wrong_sequences * 150 - hints * 100)` with sample money `100,000` and risk `12`; it is **not** the final event scoring contract.
-- Connect `Sequence.jsx` wrong-order and hint callbacks to `wrong_attempt` and `hint_used` event reporting. Decide with the gateway team whether the sequence itself is validated centrally or remains a game-side check. Only trigger the cinematic and send `solved` after all artifacts and the sequence are accepted.
+- The local five-minute timer is still used and sent as `meta.time_remaining_seconds`; confirm how to use the event-wide clock before the event.
 - Replace the crew-size selector with team data if the gateway or team roster provides it. The 3D scene already accepts `crewSize={3}` or `crewSize={4}`.
 - Do not send a `solved` event from **Preview finale · animation only**.
 
@@ -67,4 +68,4 @@ The two event documents disagree about the **Shutdown Code** source: the central
 
 ## Current status
 
-The visual animation, three- or four-person crew option, full-screen sequence and tunnel presentation, and sound cues are implemented. The Test sound button was removed. The demo can be previewed independently; the adapter is a scaffold and has not been connected to a live gateway.
+The visual animation, three- or four-person crew option, full-screen sequence and tunnel presentation, and sound cues are implemented. The Test sound button was removed. Demo mode is preserved; gateway mode is wired behind the same interface but still needs real gateway settings and a live integration check.
